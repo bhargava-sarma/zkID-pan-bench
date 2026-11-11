@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zkID PAN phone test</title>
+<style>
+  :root {
+    --paper: #efece6; --ink: #151515; --muted: #6b6760; --line: #d6d1c7;
+    --card: #f8f6f2; --accent: #ff4f00; --ok: #1d7a3a; --bad: #b3261e;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #141414; --ink: #ecebe8; --muted: #9a968e; --line: #33312d; --card: #1d1c1a; --ok: #5fc27e; --bad: #ff8a80; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font: 600 1.35rem/1.2 var(--mono); letter-spacing: -0.01em; margin: 8px 0 4px; }
+  .label { font: 600 0.72rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 8px; }
+  p { margin: 0 0 10px; }
+  ol { margin: 0; padding-left: 1.2rem; }
+  li { margin-bottom: 4px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-top: 12px; }
+  .warn { border-left: 4px solid var(--accent); }
+  button { font: 600 1rem var(--mono); border: 0; border-radius: 10px; padding: 16px; width: 100%; cursor: pointer; }
+  #start { background: var(--accent); color: #fff; margin-top: 18px; }
+  #start:disabled { opacity: 0.45; cursor: default; }
+  .copy { background: var(--ink); color: var(--paper); margin-top: 12px; }
+  progress { width: 100%; height: 10px; margin: 10px 0 4px; accent-color: var(--accent); }
+  #stage { font: 600 1rem var(--mono); }
+  #elapsed, #step { font: 0.85rem var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  pre { font: 0.85rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="label">zkID · test only</div>
+  <h1>PAN phone test</h1>
+  <p>Times how long this phone takes to prove claims from a DigiLocker PAN record. It uses a made-up record and a test key: nothing about you is used, and nothing leaves this phone.</p>
+
+  <div class="card warn" id="crash" hidden>
+    <pre id="crash-text"></pre>
+    <button class="copy" data-copy="crash-text">Copy this</button>
+  </div>
+
+  <div class="label">Before you start</div>
+  <ol>
+    <li>Use Wi-Fi: the first run downloads 536 MB, once.</li>
+    <li>Plug in the charger and close other apps.</li>
+    <li>Keep the screen on and this tab open until it finishes, about 5 minutes.</li>
+  </ol>
+
+  <button id="start">Start test</button>
+
+  <div class="card" id="status" hidden>
+    <div id="stage"></div>
+    <progress id="bar" max="1" value="0" hidden></progress>
+    <div id="elapsed"></div>
+    <div id="step"></div>
+  </div>
+
+  <div class="card" id="result" hidden>
+    <pre id="result-text"></pre>
+    <button class="copy" data-copy="result-text">Copy results</button>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const singleThread = new URLSearchParams(location.search).get('threads') !== 'all';
+  const RUN = 'zkid-pan-bench:run';
+  const LAST = 'zkid-pan-bench:last';
+  const store = {
+    get: (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
+    set: (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} },
+    del: (key) => { try { localStorage.removeItem(key); } catch {} },
+  };
+  const STAGES = { starting: 'starting', loading: 'loading the test files', download: 'getting the proving key', witness: 'computing the witness', proving: 'proving', verifying: 'checking the proof' };
+  const where = (state) => `${STAGES[state.stage] || state.stage}${state.step ? ` (${state.step})` : ''}`;
+  const clock = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const secs = (s) => `${s.toFixed(1)} s`;
+
+  let device = `${navigator.hardwareConcurrency || '?'} cores, about ${navigator.deviceMemory || '?'} GB memory reported`;
+  (async () => {
+    try {
+      const ua = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion', 'fullVersionList']);
+      const chrome = (ua.fullVersionList || []).find((b) => /Chrome/.test(b.brand));
+      device = `${ua.model || 'unknown model'}, ${ua.platform} ${ua.platformVersion}, ${chrome ? `Chrome ${chrome.version}` : navigator.userAgent}, ${device}`;
+    } catch {
+      device = `${navigator.userAgent}, ${device}`;
+    }
+  })();
+
+  // A run that never reported back means the tab was killed, usually because
+  // the phone ran out of memory.
+  const unfinished = store.get(RUN);
+  const last = store.get(LAST);
+  if (unfinished) {
+    $('crash-text').textContent = [
+      'zkID PAN phone test: the last run did not finish.',
+      `It stopped while ${where(unfinished)}, ${clock((unfinished.at - unfinished.startedAt) / 1000)} after it started.`,
+      'Most likely the phone ran out of memory, unless the page was closed or reloaded.',
+      `Device: ${unfinished.device}`,
+    ].join('\n');
+    $('crash').hidden = false;
+    store.del(RUN);
+  } else if (last) {
+    $('result-text').textContent = `Previous result\n\n${last}`;
+    $('result').hidden = false;
+  }
+
+  let run = null;
+  let wakeLock = null;
+  const keepAwake = async () => {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch {
+      run && (run.notes.add('could not keep the screen on automatically'));
+    }
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!run) return;
+    if (document.visibilityState === 'hidden') run.notes.add('the tab went to the background during the test, so timings may be off');
+    else keepAwake();
+  });
+
+  function save(fields) {
+    Object.assign(run.state, fields, { at: Date.now() });
+    store.set(RUN, run.state);
+  }
+
+  function finish(lines) {
+    clearInterval(run.ticker);
+    run.worker.terminate();
+    wakeLock && wakeLock.release().catch(() => {});
+    const notes = [...run.notes];
+    const text = [
+      `zkID PAN phone test, ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+      ...lines,
+      `Threads: ${singleThread ? 1 : 'all'}`,
+      `Device: ${device}`,
+      ...(notes.length ? [`Notes: ${notes.join('; ')}`] : []),
+    ].join('\n');
+    store.del(RUN);
+    store.set(LAST, text);
+    $('result-text').textContent = text;
+    $('result').hidden = false;
+    $('status').hidden = true;
+    $('start').disabled = false;
+    $('start').textContent = 'Run again';
+    run = null;
+  }
+
+  $('start').addEventListener('click', async () => {
+    $('start').disabled = true;
+    $('crash').hidden = true;
+    $('result').hidden = true;
+    $('status').hidden = false;
+    $('bar').hidden = true;
+    $('step').textContent = '';
+    const startedAt = Date.now();
+    run = {
+      worker: new Worker('worker.js'),
+      notes: new Set(),
+      state: { startedAt, stage: 'starting', device },
+      ticker: setInterval(() => { $('elapsed').textContent = `Running ${clock((Date.now() - startedAt) / 1000)}`; }, 1000),
+    };
+    save({});
+    keepAwake();
+    try { await navigator.storage.persist(); } catch {}
+
+    run.worker.onmessage = ({ data }) => {
+      if (!run) return;
+      if (data.type === 'stage') {
+        $('stage').textContent = data.text;
+        $('step').textContent = '';
+        $('bar').hidden = data.stage !== 'download';
+        save({ stage: data.stage, step: null });
+      } else if (data.type === 'progress') {
+        $('bar').value = data.done / data.total;
+        $('step').textContent = `${Math.round(data.done / 1e6)} of ${Math.round(data.total / 1e6)} MB`;
+      } else if (data.type === 'step') {
+        $('step').textContent = data.text;
+        save({ step: data.text });
+      } else if (data.type === 'result') {
+        const r = data;
+        if (r.cacheNote) run.notes.add(r.cacheNote);
+        finish([
+          r.valid ? 'Result: valid proof' : 'Result: the proof did NOT verify',
+          r.fromCache === r.parts ? `Proving key: from this phone's cache, loaded in ${secs(r.download)}` : `Proving key: downloaded and unpacked in ${secs(r.download)}`,
+          `Witness: ${secs(r.witness)}`,
+          `Proof: ${secs(r.prove)}`,
+        ]);
+      } else if (data.type === 'error') {
+        finish([`Result: FAILED while ${where(run.state)}`, `Error: ${data.message}`]);
+      }
+    };
+    run.worker.onerror = (event) => {
+      event.preventDefault();
+      run && finish([`Result: FAILED while ${where(run.state)}`, `Error: ${event.message || 'the test stopped unexpectedly'}`]);
+    };
+    run.worker.postMessage({ singleThread });
+  });
+
+  document.querySelectorAll('[data-copy]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const text = $(button.dataset.copy).textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = 'Copied';
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents($(button.dataset.copy));
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+        button.textContent = 'Selected: copy it with your phone';
+      }
+    });
+  });
+</script>
+</body>
+</html>

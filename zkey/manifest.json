@@ -1,0 +1,91 @@
+{
+ "version": "2026-10-27-dev",
+ "totalBytes": 1133280024,
+ "parts": [
+  {
+   "file": "part-00.gz",
+   "bytes": 67108864,
+   "gzBytes": 8649373
+  },
+  {
+   "file": "part-01.gz",
+   "bytes": 67108864,
+   "gzBytes": 6298150
+  },
+  {
+   "file": "part-02.gz",
+   "bytes": 67108864,
+   "gzBytes": 6272929
+  },
+  {
+   "file": "part-03.gz",
+   "bytes": 67108864,
+   "gzBytes": 6263371
+  },
+  {
+   "file": "part-04.gz",
+   "bytes": 67108864,
+   "gzBytes": 6270332
+  },
+  {
+   "file": "part-05.gz",
+   "bytes": 67108864,
+   "gzBytes": 37229868
+  },
+  {
+   "file": "part-06.gz",
+   "bytes": 67108864,
+   "gzBytes": 67119130
+  },
+  {
+   "file": "part-07.gz",
+   "bytes": 67108864,
+   "gzBytes": 67119130
+  },
+  {
+   "file": "part-08.gz",
+   "bytes": 67108864,
+   "gzBytes": 67119425
+  },
+  {
+   "file": "part-09.gz",
+   "bytes": 67108864,
+   "gzBytes": 55807017
+  },
+  {
+   "file": "part-10.gz",
+   "bytes": 67108864,
+   "gzBytes": 42295192
+  },
+  {
+   "file": "part-11.gz",
+   "bytes": 67108864,
+   "gzBytes": 37076346
+  },
+  {
+   "file": "part-12.gz",
+   "bytes": 67108864,
+   "gzBytes": 22742195
+  },
+  {
+   "file": "part-13.gz",
+   "bytes": 67108864,
+   "gzBytes": 40024302
+  },
+  {
+   "file": "part-14.gz",
+   "bytes": 67108864,
+   "gzBytes": 22813805
+  },
+  {
+   "file": "part-15.gz",
+   "bytes": 67108864,
+   "gzBytes": 22633047
+  },
+  {
+   "file": "part-16.gz",
+   "bytes": 59538200,
+   "gzBytes": 20725687
+  }
+ ]
+}
