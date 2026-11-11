@@ -32,3 +32,22 @@ a phone, tap Start, and copy the results it shows.
 Built from `spike/pan` in bhargava-sarma/zkID (main, 8deeced) with
 `node build.mjs`; the key was then split with `split -b 64M` and each part
 gzipped.
+
+## The Noir version: `noir/`
+
+https://bhargava-sarma.github.io/zkID-pan-bench/noir/ runs the same test for
+the Noir rewrite of the circuit (`spike/pan-noir` in bhargava-sarma/zkID),
+proved with Barretenberg's UltraHonk: first on one thread, then on all cores.
+
+- UltraHonk has no per-circuit proving key and needs no ceremony. It uses
+  Aztec's universal setup points, which the page downloads from Aztec's CDN
+  (crs.aztec-cdn.foundation, about 20 MB, kept in the browser's IndexedDB);
+  that is its only request outside this site, and it sends nothing about the
+  phone or the test.
+- Threads need cross-origin isolation, whose headers GitHub Pages cannot send:
+  `coi-sw.js`, a service worker, adds them, and the page reloads once.
+  `?threads=1` skips that and proves on one thread only.
+- The record is synthetic, as above (`noir/input.json`).
+- `noir/assets/` is a Vite build of the page with @aztec/bb.js, @noir-lang
+  packages and their dependencies; their licenses are in
+  `noir/THIRD_PARTY_LICENSES.txt`.
