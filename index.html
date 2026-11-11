@@ -48,7 +48,7 @@
 
   <div class="label">Before you start</div>
   <ol>
-    <li>Use Wi-Fi: the first run downloads 536 MB, once.</li>
+    <li>Use Wi-Fi: each run downloads 536 MB.</li>
     <li>Plug in the charger and close other apps.</li>
     <li>Keep the screen on and this tab open until it finishes, about 5 minutes.</li>
   </ol>
@@ -202,7 +202,7 @@
       event.preventDefault();
       run && finish([`Result: FAILED while ${where(run.state)}`, `Error: ${event.message || 'the test stopped unexpectedly'}`]);
     };
-    run.worker.postMessage({ singleThread });
+    run.worker.postMessage({ singleThread, useCache: new URLSearchParams(location.search).has('cache') });
   });
 
   document.querySelectorAll('[data-copy]').forEach((button) => {

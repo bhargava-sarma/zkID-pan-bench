@@ -24,13 +24,13 @@ const logger = { debug: step, info: step, warn: step, error: step };
 
 onmessage = async ({ data }) => {
   try {
-    post('result', await run(data.singleThread));
+    post('result', await run(data.singleThread, data.useCache));
   } catch (err) {
     post('error', { message: String((err && err.message) || err) });
   }
 };
 
-async function run(singleThread) {
+async function run(singleThread, useCache) {
   stage('loading', 'Loading the test files');
   const [manifest, input, vkey, wasm] = await Promise.all([
     fetch('zkey/manifest.json', { cache: 'no-cache' }).then(json),
@@ -39,7 +39,7 @@ async function run(singleThread) {
     fetch('circuit/pan-verifier.wasm').then(bytes),
   ]);
 
-  stage('download', 'Downloading the proving key (536 MB, only the first time)');
+  stage('download', 'Downloading the proving key (536 MB)');
   const started = performance.now();
   let zkey;
   try {
@@ -47,7 +47,7 @@ async function run(singleThread) {
   } catch {
     throw new Error('not enough memory to hold the 1.1 GB proving key');
   }
-  let { cache, cacheNote } = await openCache(manifest.version);
+  let { cache, cacheNote } = useCache ? await openCache(manifest.version) : await dropCaches();
   const gzTotal = manifest.parts.reduce((sum, part) => sum + part.gzBytes, 0);
   let gzDone = 0;
   let offset = 0;
@@ -89,8 +89,10 @@ async function run(singleThread) {
   return { valid, download, fromCache, parts: manifest.parts.length, witness, prove, cacheNote };
 }
 
-// The key's parts stay in this phone's browser cache, so a second run does not
-// download them again. Without a cache the test still runs.
+// With ?cache=1 the key's parts stay in this phone's browser cache, so a
+// second run does not download them again. That costs about 250 MB more
+// memory while proving, so by default every run downloads the key and any
+// earlier cached copy is deleted.
 async function openCache(version) {
   try {
     const name = `zkid-pan-bench-${version}`;
@@ -99,6 +101,13 @@ async function openCache(version) {
   } catch {
     return { cache: null, cacheNote: 'no browser cache: the key downloads again on every run' };
   }
+}
+
+async function dropCaches() {
+  try {
+    for (const old of await caches.keys()) if (old.startsWith('zkid-pan-bench-')) await caches.delete(old);
+  } catch {}
+  return { cache: null, cacheNote: null };
 }
 
 // Unpacks a part straight into the key, a few kilobytes at a time, so the

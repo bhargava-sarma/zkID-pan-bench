@@ -13,9 +13,10 @@ a phone, tap Start, and copy the results it shows.
 - The proving key in `zkey/` is a **development key made without a setup
   ceremony**: anyone could forge proofs with it. It exists to measure time and
   memory, and must never be used to accept real proofs.
-- The page sends nothing anywhere. It keeps the downloaded key in the
-  browser's cache so a second run need not download it again; clearing the
-  site's data removes it.
+- The page sends nothing anywhere. Each run downloads the key (536 MB) and
+  keeps it in memory only; `?cache=1` keeps it in the browser's cache instead,
+  so a second run need not download it, at the cost of about 250 MB more
+  memory while proving.
 
 ## Files
 
